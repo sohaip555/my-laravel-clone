@@ -10,19 +10,25 @@ use App\Controllers\HomeController;
 use App\Router;
 
 require_once __DIR__ . '/../vendor/autoload.php';
+const STORAGE_PATH = __DIR__ . '/../storage';
+const VIEW_PATH = __DIR__ . '/../views';
 
-$dotenv = Dotenv\Dotenv::createImmutable(dirname(__DIR__));
-$dotenv->load();
 
-define('STORAGE_PATH', __DIR__ . '/../storage');
-define('VIEW_PATH', __DIR__ . '/../views');
+Dotenv\Dotenv::createImmutable(dirname(__DIR__))
+    ->load();
 
 $container = new Container();
 $router    = new Router($container);
 
-$router
-    ->get('/', [HomeController::class, 'index'])
-    ->get('/examples/generator', [GeneratorExampleController::class, 'index']);
+$router->registerRouteFromAttribute([
+    HomeController::class,
+    GeneratorExampleController::class,
+]);
+
+
+echo "<pre>";
+print_r($router->routes());
+echo "</pre>";
 
 (new App(
     $container,
