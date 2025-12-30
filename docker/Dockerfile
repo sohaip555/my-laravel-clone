@@ -1,17 +1,22 @@
-FROM php:8.1.0RC6-fpm
-
+FROM php:8.1-fpm
 
 RUN apt-get update && apt-get install -y \
     git \
     curl \
     zip \
     vim \
-    unzip
-
-RUN docker-php-ext-install pdo pdo_mysql
+    unzip \
+    libicu-dev
 
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
+RUN docker-php-ext-configure intl
+RUN docker-php-ext-install pdo pdo_mysql intl
+
+RUN #pecl install xdebug \
+#    && docker-php-ext-enable xdebug
+#
+#COPY ./xdebug.ini "${PHP_INI_DIR}/conf.d"
 
 RUN echo "alias ll='ls -al'" >> /root/.bashrc && \
     echo "alias ts='./vendor/bin/phpunit'" >> /root/.bashrc && \
@@ -19,4 +24,3 @@ RUN echo "alias ll='ls -al'" >> /root/.bashrc && \
 
 
 WORKDIR /var/www
-

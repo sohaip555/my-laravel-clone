@@ -1,0 +1,1841 @@
+The following is a digest of the repository "laravel clone".
+This digest is designed to be easily parsed by Large Language Models.
+
+--- SUMMARY ---
+Repository: laravel clone
+Files Analyzed: 51
+Total Text Size: 34.55 KB
+Estimated Tokens (text only): ~9,334
+
+--- DIRECTORY STRUCTURE ---
+laravel clone/
+├── app/
+│   ├── Attributes/
+│   │   ├── Get.php
+│   │   ├── Post.php
+│   │   └── Route.php
+│   ├── Contracts/
+│   │   └── EmailValidationInterface.php
+│   ├── Controllers/
+│   │   ├── CurlController.php
+│   │   ├── HomeController.php
+│   │   ├── InvoiceController.php
+│   │   └── UserController.php
+│   ├── Enums/
+│   │   ├── Color.php
+│   │   ├── EmailStatus.php
+│   │   ├── HttpMethod.php
+│   │   └── InvoiceStatus.php
+│   ├── Exceptions/
+│   │   ├── Container/
+│   │   │   ├── ContainerException.php
+│   │   │   └── NotFoundException.php
+│   │   ├── RouteNotFoundException.php
+│   │   └── ViewNotFoundException.php
+│   ├── Models/
+│   │   ├── Email.php
+│   │   ├── Invoice.php
+│   │   └── Ticket.php
+│   ├── Services/
+│   │   ├── AbstractApi/
+│   │   │   └── EmailValidationService.php
+│   │   ├── Emailable/
+│   │   │   └── EmailValidationService.php
+│   │   ├── Shipping/
+│   │   │   └── BillableWeightCalculatorService.php
+│   │   ├── EmailService.php
+│   │   ├── InvoiceService.php
+│   │   ├── PaymentGatewayService.php
+│   │   ├── PaymentGatewayServiceInterface.php
+│   │   └── SalesTaxService.php
+│   ├── App.php
+│   ├── Config.php
+│   ├── CustomMailer.php
+│   ├── Router.php
+│   └── View.php
+├── docker/
+│   ├── cron/
+│   │   └── crontab
+│   ├── nginx/
+│   │   └── nginx.conf
+│   └── xdebug.ini
+├── migreation/
+│   └── Version20220404205403.php
+├── scripts/
+│   ├── email.php
+│   └── shipping_calculate.php
+├── storage/
+│   └── cache/
+│       └── 83/
+│           └── 8314e5a0ae38efa98975f9b291a31910.php
+├── tests/
+│   └── Unit/
+│       ├── Services/
+│       │   └── InvoiceServiceTest.php
+│       └── RouterTest.php
+├── views/
+│   ├── error/
+│   │   └── 404.php
+│   ├── invoices/
+│   │   └── index.php
+│   ├── users/
+│   │   └── register.php
+│   ├── index.twig
+│   └── transactions.php
+├── cli-config.php
+├── composer.json
+├── migreation.php
+├── phpunit.xml
+└── README.md
+
+
+--- FILE CONTENTS ---
+============================================================
+FILE: app/Attributes/Get.php
+============================================================
+<?php
+
+namespace App\Attributes;
+
+
+use App\Enums\HttpMethod;
+use Attribute;
+
+#[Attribute(Attribute::TARGET_METHOD|Attribute::IS_REPEATABLE)]
+class Get extends Route
+{
+    public function __construct(string $routePath)
+    {
+        parent::__construct($routePath, HttpMethod::Get);
+    }
+}
+
+============================================================
+FILE: app/Attributes/Post.php
+============================================================
+<?php
+
+namespace App\Attributes;
+
+
+use App\Enums\HttpMethod;
+use Attribute;
+
+#[Attribute(Attribute::TARGET_METHOD|Attribute::IS_REPEATABLE)]
+class Post extends Route
+{
+    public function __construct(string $routePath)
+    {
+        parent::__construct($routePath, HttpMethod::Post);
+    }
+}
+
+============================================================
+FILE: app/Attributes/Route.php
+============================================================
+<?php
+
+namespace App\Attributes;
+
+
+use App\Enums\HttpMethod;
+use Attribute;
+
+#[Attribute(Attribute::TARGET_METHOD|Attribute::IS_REPEATABLE)]
+class Route
+{
+
+    public function __construct(public string $routePath,public HttpMethod $method = HttpMethod::Get)
+    {
+    }
+
+}
+
+============================================================
+FILE: app/Contracts/EmailValidationInterface.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace App\Contracts;
+
+interface EmailValidationInterface
+{
+    public function verify(string $email): array;
+}
+
+============================================================
+FILE: app/Controllers/CurlController.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace App\Controllers;
+
+use App\Attributes\Get;
+use App\Contracts\EmailValidationInterface;
+
+class CurlController
+{
+    public function __construct(private EmailValidationInterface $emailValidationService)
+    {
+    }
+
+    #[Get('/curl')]
+    public function index()
+    {
+        $email  = 'sohupabughrara@gmail.com';
+        $result = $this->emailValidationService->verify($email);
+
+        echo '<pre>';
+        print_r($result);
+        echo '</pre>';
+    }
+}
+
+============================================================
+FILE: app/Controllers/HomeController.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace App\Controllers;
+
+use Psr\Http\Message\ResponseInterface as Response  ;
+use Psr\Http\Message\ServerRequestInterface as Request;
+use Slim\Views\Twig;
+
+class HomeController
+{
+    public function __construct( )
+    {
+    }
+    public function index(Request $request, Response $response, array $args) {
+        return Twig::fromRequest($request)->render($response, 'index.twig');
+    }
+
+
+}
+
+
+============================================================
+FILE: app/Controllers/InvoiceController.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace App\Controllers;
+
+use App\Services\InvoiceService;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+
+class InvoiceController
+{
+    public function __construct(private InvoiceService $invoiceService)
+    {
+    }
+
+    public function index(Request $request, Response $response, $args): Response
+    {
+        return Twig::fromRequest($request)->render(
+            $response,
+            'invoices/index.twig',
+        );
+    }
+}
+
+============================================================
+FILE: app/Controllers/UserController.php
+============================================================
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use App\View;
+use App\Attributes\Get;
+use App\Attributes\Post;
+use Symfony\Component\Mime\Address;
+
+class UserController
+{
+
+    #[Get('/users/create')]
+    public function create(): View
+    {
+        return View::make('users/register');
+    }
+
+    #[Post('/users')]
+    public function register()
+    {
+        $name = $_POST['name'];
+        $email = $_POST['email'];
+        $firstName = explode(' ', $name)[0];
+
+        $text = <<<Body
+Hello $firstName,
+
+Thank you for signing up!
+Body;
+
+        $html = <<<HTMLBody
+<h1 style="text-align: center; color: blue;">Welcome</h1>
+Hello $firstName,
+<br /><br />
+Thank you for signing up!
+HTMLBody;
+
+        (new \App\Models\Email())->queue(
+            new Address($email),
+            new Address('support@example.com'),
+            'Welcome!',
+            $html,
+            $text);
+    }
+}
+
+============================================================
+FILE: app/Enums/Color.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace App\Enums;
+
+enum Color: string
+{
+    case Green  = 'green';
+    case Red    = 'red';
+    case Gray   = 'gray';
+    case Orange = 'orange';
+
+    public function getClass(): string
+    {
+        return 'color-' . $this->value;
+    }
+}
+
+============================================================
+FILE: app/Enums/EmailStatus.php
+============================================================
+<?php
+
+namespace App\Enums;
+
+enum EmailStatus: int
+{
+    case Queue = 0;
+    case Sent = 1;
+    case Failed =2;
+
+    public function toString(): string
+    {
+        return match ($this){
+            self::Queue => 'In Queue',
+            self::Sent  => 'Sent',
+            self::Failed => 'failed'
+        };
+    }
+
+}
+
+
+============================================================
+FILE: app/Enums/HttpMethod.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace App\Enums;
+
+enum HttpMethod: string
+{
+    case Get = 'get';
+    case Post = 'post';
+    case Put = 'put';
+    case Head = 'head';
+}
+
+============================================================
+FILE: app/Enums/InvoiceStatus.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace App\Enums;
+
+enum InvoiceStatus: int
+{
+    case Pending = 0;
+    case Paid    = 1;
+    case Void    = 2;
+    case Failed  = 3;
+
+    public function toString(): string
+    {
+        return match($this) {
+            self::Paid   => 'Paid',
+            self::Failed => 'Declined',
+            self::Void   => 'Void',
+            default      => 'Pending'
+        };
+    }
+
+    public function color(): Color
+    {
+        return match($this) {
+            self::Paid   => Color::Green,
+            self::Failed => Color::Red,
+            self::Void   => Color::Gray,
+            default      => Color::Orange
+        };
+    }
+
+    public static function fromColor(Color $color): InvoiceStatus
+    {
+        return match($color) {
+            Color::Green => self::Paid,
+            Color::Gray  => self::Void,
+            Color::Red   => self::Failed,
+            default      => self::Pending
+        };
+    }
+}
+
+============================================================
+FILE: app/Exceptions/Container/ContainerException.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace App\Exceptions\Container;
+
+use Psr\Container\ContainerExceptionInterface;
+
+class ContainerException extends \Exception implements ContainerExceptionInterface
+{
+
+}
+
+
+============================================================
+FILE: app/Exceptions/Container/NotFoundException.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace App\Exceptions\Container;
+
+use Psr\Container\NotFoundExceptionInterface;
+
+class NotFoundException extends \Exception implements NotFoundExceptionInterface
+{
+}
+
+
+============================================================
+FILE: app/Exceptions/RouteNotFoundException.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace App\Exceptions;
+
+class RouteNotFoundException extends \Exception
+{
+    protected $message = '404 Not Found';
+}
+
+
+============================================================
+FILE: app/Exceptions/ViewNotFoundException.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace App\Exceptions;
+
+class ViewNotFoundException extends \Exception
+{
+    protected $message = 'View not found';
+}
+
+
+============================================================
+FILE: app/Models/Email.php
+============================================================
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use App\Enums\EmailStatus;
+use Illuminate\Database\Eloquent\Model;
+use Symfony\Component\Mime\Address;
+
+class Email extends Model
+{
+
+    public function queue(
+        Address $to,
+        Address $from,
+        string $subject,
+        string $html,
+        ?string $text,
+    ): void
+    {
+        $stmt = $this->prepare(
+            'INSERT INTO emails (subject, status, html_body, text_body, meta, created_at)
+            Values (?, ?, ?, ?, ?, NOW())');
+
+        $meta['to']   = $to->toString();
+        $meta['from'] = $from->toString();
+
+        $stmt->executeStatement([$subject, EmailStatus::Queue->value, $html, $text, json_encode($meta)]);
+
+    }
+
+
+    public function getEmailsByStatus(EmailStatus $status): array
+    {
+        $stmt = $this ->prepare(
+            'SELECT *
+             FROM emails
+             WHERE status = ?'
+        );
+
+        return $stmt->executeQuery([$status->value])->fetchAllAssociative();
+    }
+
+    public function markEmailSent(int $id): void
+    {
+        $stmt = $this ->prepare(
+            'UPDATE emails
+             SET status = ?, sent_at = NOW()
+             WHERE id = ?'
+        );
+
+        $stmt->executeStatement([EmailStatus::Sent->value, $id]);
+    }
+}
+
+============================================================
+FILE: app/Models/Invoice.php
+============================================================
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Invoice extends Model
+{
+}
+
+============================================================
+FILE: app/Models/Ticket.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace App\Models;
+use Illuminate\Database\Eloquent\Model;
+
+class Ticket extends Model
+{
+
+}
+
+
+============================================================
+FILE: app/Services/AbstractApi/EmailValidationService.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace App\Services\AbstractApi;
+
+use App\Contracts\EmailValidationInterface;
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ConnectException;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
+
+class EmailValidationService implements EmailValidationInterface
+{
+    private string $baseUrl = 'https://emailreputation.abstractapi.com/v1/';
+
+    public function __construct(private string $apiKey)
+    {
+    }
+
+    public function verify(string $email): array
+    {
+        $stack = HandlerStack::create();
+
+        $maxRetry = 3;
+
+        $stack->push($this->getRetryMiddleware($maxRetry));
+
+        $client = new Client(
+            [
+                'base_uri' => $this->baseUrl,
+                'timeout'  => 5,
+                'handler'  => $stack,
+            ]
+        );
+
+        $params = [
+            'api_key' => $this->apiKey,
+            'email'   => $email,
+        ];
+
+        $response = $client->get('', ['query' => $params]);
+
+        return json_decode($response->getBody()->getContents(), true);
+    }
+
+    private function getRetryMiddleware(int $maxRetry): callable
+    {
+        return Middleware::retry(
+            function (
+                int $retries,
+                RequestInterface $request,
+                ?ResponseInterface $response = null,
+                ?\RuntimeException $e = null
+            ) use ($maxRetry) {
+                if ($retries >= $maxRetry) {
+                    return false;
+                }
+
+                if ($response && in_array($response->getStatusCode(), [249, 429, 503])) {
+                    return true;
+                }
+
+                if ($e instanceof ConnectException) {
+                    return true;
+                }
+
+                return false;
+            }
+        );
+    }
+}
+
+============================================================
+FILE: app/Services/Emailable/EmailValidationService.php
+============================================================
+<?php
+
+namespace App\Services\Emailable;
+
+class EmailValidationService
+{
+
+
+
+}
+
+============================================================
+FILE: app/Services/Shipping/BillableWeightCalculatorService.php
+============================================================
+<?php
+
+namespace App\Services\Shipping;
+
+class  BillableWeightCalculatorService
+{
+
+
+
+}
+
+============================================================
+FILE: app/Services/EmailService.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace App\Services;
+
+use App\Enums\EmailStatus;
+use App\Models\Email;
+use Symfony\Component\Mailer\MailerInterface;
+
+class EmailService
+{
+    public function __construct(protected Email $emailModel, protected MailerInterface $mailer)
+    {
+    }
+
+
+    public function sendQueuedEmails()
+    {
+        $emails = $this->emailModel->getEmailsByStatus(EmailStatus::Queue);
+
+        foreach($emails as $email) {
+            $meto = json_decode($email->meta, true);
+            $emailMessage = (new \Symfony\Component\Mime\Email())
+            ->from($meto['from'])
+                ->to($meto['to'])
+                ->subject($email->subject)
+                ->html($email->html_body)
+                ->text($email->text_body);
+
+            $this->mailer->send($emailMessage);
+
+            $this->emailModel->markEmailSent($email->id);
+
+        }
+
+
+    }
+}
+
+
+============================================================
+FILE: app/Services/InvoiceService.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace App\Services;
+
+use Doctrine\ORM\EntityManager;
+
+class InvoiceService
+{
+    public function __construct(private EntityManager $em)
+    {
+    }
+
+    public function getPaidInvoices()
+    {
+
+    }
+}
+
+============================================================
+FILE: app/Services/PaymentGatewayService.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace App\Services;
+
+class PaymentGatewayService implements PaymentGatewayServiceInterface
+{
+    public function charge(array $customer, float $amount, float $tax): bool
+    {
+//        sleep(1);
+
+        return true; //mt_rand(0, 1);
+    }
+}
+
+
+============================================================
+FILE: app/Services/PaymentGatewayServiceInterface.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace App\Services;
+
+interface PaymentGatewayServiceInterface
+{
+    public function charge(array $customer, float $amount, float $tax): bool;
+}
+
+
+============================================================
+FILE: app/Services/SalesTaxService.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace App\Services;
+
+class SalesTaxService
+{
+    public function calculate(float $amount, array $customer): float
+    {
+//        sleep(1);
+
+        return $amount * 6.5 / 100;
+    }
+}
+
+
+============================================================
+FILE: app/App.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace App;
+
+use App\Contracts\EmailValidationInterface;
+use App\Exceptions\RouteNotFoundException;
+use App\Services\AbstractApi\EmailValidationService;
+use Dotenv\Dotenv;
+use Illuminate\Container\Container;
+use Illuminate\Database\Capsule\Manager as Capsule;
+use Illuminate\Events\Dispatcher;
+use Symfony\Component\Mailer\MailerInterface;
+
+class App
+{
+    private Config $config;
+
+    public function __construct(
+        protected Container $container,
+        protected ?Router $router = null,
+        protected array $request = [],
+    ) {
+    }
+
+    public function initDb(array $config)
+    {
+        $capsule = new Capsule();
+
+        $capsule->addConnection($config);
+        $capsule->setEventDispatcher(new Dispatcher($this->container));
+        $capsule->setAsGlobal();
+        $capsule->bootEloquent();
+    }
+
+    public function boot(): static
+    {
+        $dotenv = Dotenv::createImmutable(dirname(__DIR__));
+        $dotenv->load();
+
+        $this->config = new Config($_ENV);
+
+        $this->initDb($this->config->db);
+
+        $this->container->bind(MailerInterface::class, fn() => new CustomMailer($this->config->mailer['dsn']));
+        $this->container->bind(
+            EmailValidationInterface::class,
+            fn() => new EmailValidationService($this->config->apiKeys['abstract_api_email_validation'])
+        );
+
+        return $this;
+    }
+
+    public function run()
+    {
+        try {
+            echo $this->router->resolve($this->request['uri'], strtolower($this->request['method']));
+        } catch (RouteNotFoundException) {
+            http_response_code(404);
+
+            echo View::make('error/404');
+        }
+    }
+}
+
+============================================================
+FILE: app/Config.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace App;
+
+/**
+ * @property-read ?array $db
+ * @property-read ?array $mailer
+ */
+class Config
+{
+    protected array $config = [];
+
+    public function __construct(array $env)
+    {
+        $this->config = [
+            'db'      => [
+                'host'      => $env['DB_HOST'],
+                'username'  => $env['DB_USER'],
+                'password'  => $env['DB_PASS'],
+                'database'  => $env['DB_DATABASE'],
+                'driver'    => $env['DB_DRIVER'] ?? 'mysql',
+                'charset'   => 'utf8',
+                'collation' => 'utf8_unicode_ci',
+                'prefix'    => '',
+            ],
+            'mailer'  => [
+                'dsn' => $env['MAILER_DSN'] ?? '',
+            ],
+            'apiKeys' => [
+                'emailable'                     => $env['EMAILABLE_API_KEY'] ?? '',
+                'abstract_api_email_validation' => $env['ABSTRACT_API_EMAIL_VALIDATION_API_KEY'] ?? '',
+            ],
+        ];
+    }
+
+    public function __get(string $name)
+    {
+        return $this->config[$name] ?? null;
+    }
+}
+
+============================================================
+FILE: app/CustomMailer.php
+============================================================
+<?php
+
+namespace App;
+
+use Symfony\Component\Mailer\Envelope;
+use Symfony\Component\Mailer\MailerInterface;
+use Symfony\Component\Mailer\Transport;
+use Symfony\Component\Mailer\Transport\TransportInterface;
+use Symfony\Component\Mime\RawMessage;
+
+class CustomMailer implements MailerInterface
+{
+    private TransportInterface $transport;
+
+    public function __construct($dsn)
+    {
+        $this->transport = Transport::fromDsn($dsn);
+    }
+
+    public function send(RawMessage $message, ?Envelope $envelope = null): void
+    {
+        $this->transport->send($message, $envelope);
+    }
+}
+
+============================================================
+FILE: app/Router.php
+============================================================
+<?php
+
+declare(strict_types=1);
+
+namespace App;
+
+use App\Attributes\Route;
+use App\Exceptions\RouteNotFoundException;
+use Illuminate\Container\Container;
+
+class Router
+{
+    private array $routes = [];
+
+    public function __construct(private Container $container)
+    {
+    }
+
+    public function registerRoutesFromControllerAttributes(array $controllers)
+    {
+        foreach($controllers as $controller) {
+            $reflectionController = new \ReflectionClass($controller);
+
+            foreach($reflectionController->getMethods() as $method) {
+                $attributes = $method->getAttributes(Route::class, \ReflectionAttribute::IS_INSTANCEOF);
+
+                foreach($attributes as $attribute) {
+                    $route = $attribute->newInstance();
+
+                    $this->register($route->method->value, $route->routePath, [$controller, $method->getName()]);
+                }
+            }
+        }
+    }
+
+    public function register(string $requestMethod, string $route, callable|array $action): self
+    {
+        $this->routes[$requestMethod][$route] = $action;
+
+        return $this;
+    }
+
+    public function get(string $route, callable|array $action): self
+    {
+        return $this->register('get', $route, $action);
+    }
+
+    public function post(string $route, callable|array $action): self
+    {
+        return $this->register('post', $route, $action);
+    }
+
+    public function routes(): array
+    {
+        return $this->routes;
+    }
+
+    public function resolve(string $requestUri, string $requestMethod)
+    {
+        $route = explode('?', $requestUri)[0];
+        $action = $this->routes[$requestMethod][$route] ?? null;
+
+        if (! $action) {
+            throw new RouteNotFoundException();
+        }
+
+        if (is_callable($action)) {
+            return call_user_func($action);
+        }
+
+        [$class, $method] = $action;
+
+        if (class_exists($class)) {
+            $class = $this->container->get($class);
+
+            if (method_exists($class, $method)) {
+                return call_user_func_array([$class, $method], []);
+            }
+        }
+
+        throw new RouteNotFoundException();
+    }
+}
+
+============================================================
+FILE: app/View.php
+============================================================
+<?php
+
+declare(strict_types=1);
+
+namespace App;
+
+use App\Exceptions\ViewNotFoundException;
+
+class View
+{
+    public function __construct(
+        protected string $view,
+        protected array $params = []
+    ) {
+    }
+
+    public static function make(string $view, array $params = []): static
+    {
+        return new static($view, $params);
+    }
+
+    public function render(): string
+    {
+        $viewPath = VIEW_PATH . '/' . $this->view . '.php';
+
+        if (! file_exists($viewPath)) {
+            throw new ViewNotFoundException();
+        }
+
+        foreach($this->params as $key => $value) {
+            $$key = $value;
+        }
+
+        ob_start();
+
+        include $viewPath;
+
+        return (string) ob_get_clean();
+    }
+
+    public function __toString(): string
+    {
+        return $this->render();
+    }
+
+    public function __get(string $name)
+    {
+        return $this->params[$name] ?? null;
+    }
+}
+
+
+============================================================
+FILE: docker/cron/crontab
+============================================================
+*/1 * * * * php /var/www/scripts/email.php >> /var/log/cron/cron.log 2>&1
+
+
+============================================================
+FILE: docker/nginx/nginx.conf
+============================================================
+server {
+    listen 80;
+    index index.php;
+    error_log  /var/log/nginx/error.log;
+    access_log /var/log/nginx/access.log;
+    error_page 404 /index.php;
+    root /var/www/public;
+    location ~ \.php$ {
+        try_files $uri =404;
+        fastcgi_pass app:9000;
+        fastcgi_index index.php;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+        gzip_static on;
+    }
+}
+
+
+============================================================
+FILE: docker/xdebug.ini
+============================================================
+;zend_extension=xdebug
+xdebug.mode=develop,debug
+xdebug.start_with_request=yes
+xdebug.discover_client_host=0
+xdebug.client_host=host.docker.internal
+
+============================================================
+FILE: migreation/Version20220404205403.php
+============================================================
+<?php
+
+declare(strict_types=1);
+
+namespace Migrations;
+
+use Doctrine\DBAL\Schema\Schema;
+use Doctrine\Migrations\AbstractMigration;
+
+/**
+ * Auto-generated Migration: Please modify to your needs!
+ */
+final class Version20220404205403 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return '';
+    }
+
+    public function up(Schema $schema): void
+    {
+        // this up() migration is auto-generated, please modify it to your needs
+        $this->addSql('ALTER TABLE invoices ADD due_date DATETIME NOT NULL');
+    }
+
+    public function down(Schema $schema): void
+    {
+        // this down() migration is auto-generated, please modify it to your needs
+        $this->addSql('ALTER TABLE invoice_items CHANGE description description VARCHAR(255) CHARACTER SET utf8 NOT NULL COLLATE `utf8_unicode_ci`');
+        $this->addSql('ALTER TABLE invoices DROP due_date, CHANGE invoice_number invoice_number VARCHAR(255) CHARACTER SET utf8 NOT NULL COLLATE `utf8_unicode_ci`');
+    }
+}
+
+============================================================
+FILE: scripts/email.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+use App\App;
+use App\Container;
+use App\Services\EmailService;
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+$container = new Container();
+
+(new App($container))->boot();
+
+$container->get(EmailService::class)->sendQueuedEmails();
+
+============================================================
+FILE: scripts/shipping_calculate.php
+============================================================
+<?php
+
+namespace App\Services\Shipping;
+
+
+
+require_once __DIR__ .  '/../vendor/autoload.php';
+
+
+use App\Services\Shipping\BillableWeightCalculatorService;
+
+$package = [
+        'weight'=>6,
+    'dimensions' => [
+        'width' => 9,
+        'length' => 15,
+        'height' =>7]
+];
+
+$fedexDimDivisor = 139;
+
+============================================================
+FILE: storage/cache/83/8314e5a0ae38efa98975f9b291a31910.php
+============================================================
+<?php
+
+use Twig\Environment;
+use Twig\Error\LoaderError;
+use Twig\Error\RuntimeError;
+use Twig\Extension\CoreExtension;
+use Twig\Extension\SandboxExtension;
+use Twig\Markup;
+use Twig\Sandbox\SecurityError;
+use Twig\Sandbox\SecurityNotAllowedTagError;
+use Twig\Sandbox\SecurityNotAllowedFilterError;
+use Twig\Sandbox\SecurityNotAllowedFunctionError;
+use Twig\Source;
+use Twig\Template;
+use Twig\TemplateWrapper;
+
+/* index.twig */
+class __TwigTemplate_1b08364ab46c2333320420ea600803dc extends Template
+{
+    private Source $source;
+    /**
+     * @var array<string, Template>
+     */
+    private array $macros = [];
+
+    public function __construct(Environment $env)
+    {
+        parent::__construct($env);
+
+        $this->source = $this->getSourceContext();
+
+        $this->parent = false;
+
+        $this->blocks = [
+        ];
+    }
+
+    protected function doDisplay(array $context, array $blocks = []): iterable
+    {
+        $macros = $this->macros;
+        // line 1
+        yield "<!doctype html>
+<html lang=\"en\">
+    <head>
+        <meta charset=\"UTF-8\">
+        <meta name=\"viewport\"
+              content=\"width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0\">
+        <meta http-equiv=\"X-UA-Compatible\" content=\"ie=edge\">
+        <title>Document</title>
+    </head>
+    <body>
+        Home Page
+    </body>
+</html>
+";
+        yield from [];
+    }
+
+    /**
+     * @codeCoverageIgnore
+     */
+    public function getTemplateName(): string
+    {
+        return "index.twig";
+    }
+
+    /**
+     * @codeCoverageIgnore
+     */
+    public function getDebugInfo(): array
+    {
+        return array (  42 => 1,);
+    }
+
+    public function getSourceContext(): Source
+    {
+        return new Source("", "index.twig", "/var/www/views/index.twig");
+    }
+}
+
+
+============================================================
+FILE: tests/Unit/Services/InvoiceServiceTest.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace Tests\Unit\Services;
+
+use App\Services\EmailService;
+use App\Services\InvoiceService;
+use App\Services\PaymentGatewayService;
+use App\Services\SalesTaxService;
+use PHPUnit\Framework\TestCase;
+
+class InvoiceServiceTest extends TestCase
+{
+    /** @test */
+    public function it_processes_invoice(): void
+    {
+        $salesTaxServiceMock = $this->createMock(SalesTaxService::class);
+        $gatewayServiceMock  = $this->createMock(PaymentGatewayService::class);
+        $emailServiceMock    = $this->createMock(EmailService::class);
+
+        $gatewayServiceMock->method('charge')->willReturn(true);
+
+        // given invoice service
+        $invoiceService = new InvoiceService(
+            $salesTaxServiceMock,
+            $gatewayServiceMock,
+            $emailServiceMock
+        );
+
+        $customer = ['name' => 'Gio'];
+        $amount   = 150;
+
+        // when process is called
+        $result = $invoiceService->process($customer, $amount);
+
+        // then assert invoice is processed successfully
+        $this->assertTrue($result);
+    }
+
+    /** @test */
+    public function it_sends_receipt_email_when_invoice_is_processed(): void
+    {
+        $customer = ['name' => 'Gio'];
+        $salesTaxServiceMock = $this->createMock(SalesTaxService::class);
+        $gatewayServiceMock  = $this->createMock(PaymentGatewayService::class);
+        $emailServiceMock    = $this->createMock(EmailService::class);
+
+        $gatewayServiceMock->method('charge')->willReturn(true);
+
+        $emailServiceMock
+            ->expects($this->once())
+            ->method('send')
+            ->with($customer, 'receipt');
+
+        // given invoice service
+        $invoiceService = new InvoiceService(
+            $salesTaxServiceMock,
+            $gatewayServiceMock,
+            $emailServiceMock
+        );
+
+        $amount   = 150;
+
+        // when process is called
+        $result = $invoiceService->process($customer, $amount);
+
+        // then assert invoice is processed successfully
+        $this->assertTrue($result);
+    }
+}
+
+
+============================================================
+FILE: tests/Unit/RouterTest.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+namespace Tests\Unit;
+
+use App\Exceptions\RouteNotFoundException;
+use App\Router;
+use PHPUnit\Framework\TestCase;
+
+class RouterTest extends TestCase
+{
+    private Router $router;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->router = new Router();
+    }
+
+    /** @test */
+    public function it_registers_a_route(): void
+    {
+        $this->router->register('get', '/users', ['Users', 'index']);
+
+        $expected = [
+            'get' => [
+                '/users' => ['Users', 'index'],
+            ],
+        ];
+
+        $this->assertSame($expected, $this->router->routes());
+    }
+
+    /** @test */
+    public function it_registers_a_get_route(): void
+    {
+        $this->router->get('/users', ['Users', 'index']);
+
+        $expected = [
+            'get' => [
+                '/users' => ['Users', 'index'],
+            ],
+        ];
+
+        $this->assertSame($expected, $this->router->routes());
+    }
+
+    /** @test */
+    public function it_registers_a_post_route(): void
+    {
+        $this->router->post('/users', ['Users', 'store']);
+
+        $expected = [
+            'post' => [
+                '/users' => ['Users', 'store'],
+            ],
+        ];
+
+        $this->assertSame($expected, $this->router->routes());
+    }
+
+    /** @test */
+    public function there_are_no_routes_when_router_is_created(): void
+    {
+        $this->assertEmpty((new Router())->routes());
+    }
+
+    /**
+     * @test
+     * @dataProvider routeNotFoundCases
+     */
+    public function it_throws_route_not_found_exception(
+        string $requestUri,
+        string $requestMethod
+    ): void {
+        $users = new class() {
+            public function delete(): bool
+            {
+                return true;
+            }
+        };
+
+        $this->router->post('/users', [$users::class, 'store']);
+        $this->router->get('/users', ['Users', 'index']);
+
+        $this->expectException(RouteNotFoundException::class);
+        $this->router->resolve($requestUri, $requestMethod);
+    }
+
+    public function routeNotFoundCases(): array
+    {
+        return [
+            ['/users', 'put'],
+            ['/invoices', 'post'],
+            ['/users', 'get'],
+            ['/users', 'post'],
+        ];
+    }
+
+    /** @test */
+    public function it_resolves_route_from_a_closure(): void
+    {
+        $this->router->get('/users', fn() => [1, 2, 3]);
+
+        $this->assertSame(
+            [1, 2, 3],
+            $this->router->resolve('/users', 'get')
+        );
+    }
+
+    /** @test */
+    public function it_resolves_route(): void
+    {
+        $users = new class() {
+            public function index(): array
+            {
+                return [1, 2, 3];
+            }
+        };
+
+        $this->router->get('/users', [$users::class, 'index']);
+
+        $this->assertSame(
+            [1, 2, 3],
+            $this->router->resolve('/users', 'get')
+        );
+    }
+}
+
+
+============================================================
+FILE: views/error/404.php
+============================================================
+404 Page Not Found
+
+
+============================================================
+FILE: views/invoices/index.php
+============================================================
+<style>
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: center;
+    }
+
+    table tr th, table tr td {
+        border: 1px #eee solid;
+        padding: 5px;
+    }
+
+    .color-green {
+        color: green;
+    }
+
+    .color-red {
+        color: red;
+    }
+
+    .color-gray {
+        color: gray;
+    }
+
+    .color-orange {
+        color: orange;
+    }
+</style>
+<table>
+    <thead>
+    <tr>
+        <th>Invoice #</th>
+        <th>Amount</th>
+        <th>Status</th>
+    </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($invoices as $invoice): ?>
+        <tr>
+            <td><?= $invoice['invoice_number'] ?></td>
+            <td>$<?= number_format($invoice['amount'], 2) ?></td>
+            <td class="<?= \App\Enums\InvoiceStatus::tryFrom($invoice['status'])->color()->getClass() ?>">
+                <?= \App\Enums\InvoiceStatus::tryFrom($invoice['status'])->toString() ?>
+            </td>
+        </tr>
+    <?php endforeach ?>
+    </tbody>
+</table>
+
+============================================================
+FILE: views/users/register.php
+============================================================
+<style>
+    html, body {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+    }
+
+    body {
+        display: flex;
+        background-color: #f5f9ff;
+    }
+
+    .register-container {
+        margin: auto;
+    }
+
+    .register-container form {
+        display: flex;
+        flex-direction: column;
+        row-gap: 1rem;
+    }
+
+    .register-container input {
+        padding: 10px;
+        border: none;
+        font-size: 18px;
+    }
+
+    .register-container label {
+        width: 100%;
+        text-align: right;
+        display: inline-block;
+        font-size: 18px;
+    }
+
+    .register-container .btn-container {
+        text-align: right;
+    }
+
+    .register-container .btn {
+        background-color: #00a3c2;
+        border: none;
+        padding: 10px;
+        font-size: 18px;
+        color: white;
+        border-radius: 5px;
+        cursor: pointer;
+        width: 76%;
+    }
+
+    .register-container .btn:hover {
+        background-color: #01cef3;
+    }
+</style>
+<div class="register-container">
+    <form action="/users" method="post">
+        <div>
+            <label>
+                Name:
+                <input type="text" name="name" placeholder="John Smith" />
+            </label>
+        </div>
+        <div>
+            <label>
+                Email:
+                <input type="email" name="email" placeholder="john.smith@example.com" />
+            </label>
+        </div>
+        <div>
+            <label>
+                Password:
+                <input type="password" name="password" />
+            </label>
+        </div>
+        <div class="btn-container">
+            <button type="submit" class="btn">Register</button>
+        </div>
+    </form>
+</div>
+
+============================================================
+FILE: views/index.twig
+============================================================
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport"
+              content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+        <meta http-equiv="X-UA-Compatible" content="ie=edge">
+        <title>Document</title>
+    </head>
+    <body>
+        Home Page
+    </body>
+</html>
+
+
+============================================================
+FILE: views/transactions.php
+============================================================
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Transactions</title>
+        <style>
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                text-align: center;
+            }
+
+            table tr th, table tr td {
+                padding: 5px;
+                border: 1px #eee solid;
+            }
+
+            tfoot tr th, tfoot tr td {
+                font-size: 20px;
+            }
+
+            tfoot tr th {
+                text-align: right;
+            }
+        </style>
+    </head>
+    <body>
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Check #</th>
+                    <th>Description</th>
+                    <th>Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- TODO -->
+            </tbody>
+            <tfoot>
+                <tr>
+                    <th colspan="3">Total Income:</th>
+                    <td><!-- TODO --></td>
+                </tr>
+                <tr>
+                    <th colspan="3">Total Expense:</th>
+                    <td><!-- TODO --></td>
+                </tr>
+                <tr>
+                    <th colspan="3">Net Total:</th>
+                    <td><!-- TODO --></td>
+                </tr>
+            </tfoot>
+        </table>
+    </body>
+</html>
+
+
+============================================================
+FILE: cli-config.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+require 'vendor/autoload.php';
+
+use Doctrine\Migrations\Configuration\Migration\PhpFile;
+use Doctrine\ORM\EntityManager;
+use Doctrine\ORM\ORMSetup;
+use Doctrine\Migrations\Configuration\EntityManager\ExistingEntityManager;
+use Doctrine\Migrations\DependencyFactory;
+use Dotenv\Dotenv;
+
+$dotenv = Dotenv::createImmutable(__DIR__);
+$dotenv->load();
+
+$config = new PhpFile('migrations.php'); // Or use one of the Doctrine\Migrations\Configuration\Configuration\* loaders
+$params = [
+    'host'     => $_ENV['DB_HOST'],
+    'user'     => $_ENV['DB_USER'],
+    'password' => $_ENV['DB_PASS'],
+    'dbname'   => $_ENV['DB_DATABASE'],
+    'driver'   => $_ENV['DB_DRIVER'] ?? 'pdo_mysql',
+];
+
+$entityManager = EntityManager::create(
+    $params,
+    ORMSetup::createAttributeMetadataConfiguration([__DIR__ . '/app/Entity'])
+);
+
+return DependencyFactory::fromEntityManager($config, new ExistingEntityManager($entityManager));
+
+
+
+
+
+============================================================
+FILE: composer.json
+============================================================
+{
+    "require": {
+        "ext-pdo": "*",
+        "vlucas/phpdotenv": "^5.3",
+        "psr/container": "^2.0",
+        "symfony/mailer": "^6.0",
+        "doctrine/dbal": "^3.3",
+        "doctrine/orm": "^2.11",
+        "symfony/cache": "^6.0",
+        "doctrine/migrations": "^3.4",
+        "php-di/php-di": "^7.1",
+        "slim/twig-view": "^3.4",
+        "slim/slim": "4.*",
+        "slim/psr7": "^1.8"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.5",
+        "laravel/boost": "^1.8",
+        "symfony/maker-bundle": "^1.65"
+    }
+}
+
+
+============================================================
+FILE: migreation.php
+============================================================
+<?php
+
+declare(strict_types = 1);
+
+return [
+    'table_storage' => [
+        'table_name' => 'doctrine_migration_versions',
+        'version_column_name' => 'version',
+        'version_column_length' => 1024,
+        'executed_at_column_name' => 'executed_at',
+        'execution_time_column_name' => 'execution_time',
+    ],
+
+    'migrations_paths' => [
+        'Migrations' => '/migrations',
+    ],
+
+    'all_or_nothing' => true,
+    'transactional' => true,
+    'check_database_platform' => true,
+    'organize_migrations' => 'none',
+    'connection' => null,
+    'em' => null,
+];
+
+============================================================
+FILE: phpunit.xml
+============================================================
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit colors="true" bootstrap="vendor/autoload.php">
+    <testsuites>
+        <testsuite name="Unit Tests">
+            <directory>tests/Unit</directory>
+        </testsuite>
+    </testsuites>
+</phpunit>
+
+
+============================================================
+FILE: README.md
+============================================================
+#### The source code for the PHP course "Learn PHP The Right Way" lesson 3.6.
+
+https://youtu.be/xH3snMmgDWg
+
+---
+#### Course Playlist
+https://www.youtube.com/watch?v=sVbEyFZKgqk&list=PLr3d3QYzkw2xabQRUpcZ_IBk9W50M9pe-

@@ -4,28 +4,23 @@ declare(strict_types = 1);
 
 namespace App\Controllers;
 
-use App\Models\Ticket;
-use Generator;
+use App\Services\InvoiceService;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+use Slim\Views\Twig;
 
-class GeneratorExampleController
+class InvoiceController
 {
-    public function __construct(private Ticket $ticketModel)
+    public function __construct(private InvoiceService $invoiceService)
     {
     }
 
-    public function index()
+    public function index(Request $request, Response $response, $args): Response
     {
-        $tickets = $this->ticketModel->all();
-
-        foreach($tickets as $ticket) {
-            echo $ticket['id'] . ': ' . substr($ticket['content'], 0, 15) . '<br />';
-        }
-    }
-
-    private function lazyRange(int $start, int $end): Generator
-    {
-        for ($i = $start; $i <= $end; $i++) {
-            yield $i;
-        }
+        return Twig::fromRequest($request)->render(
+            $response,
+            'invoices/index.twig',
+            ['invoices' => $this->invoiceService->getPaidInvoices()]
+        );
     }
 }
